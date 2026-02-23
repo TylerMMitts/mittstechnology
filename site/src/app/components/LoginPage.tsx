@@ -113,7 +113,7 @@ export function LoginPage({ mode, onSuccess, onSwitchMode }: LoginPageProps) {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder=""
                 className="mt-1 rounded-lg border-[#84A98C] focus:border-[#52796F] focus:ring-[#52796F]"
                 required
                 minLength={6}
