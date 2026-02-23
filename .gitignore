@@ -17,3 +17,5 @@ dist/
 .DS_Store
 .env
 .env.*
+site/.env
+site/.env.*

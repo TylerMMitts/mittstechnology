@@ -15,9 +15,10 @@ import {
   X,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
+import type { User } from '../../lib/supabase';
 
 interface DashboardProps {
-  user: { name: string; email: string };
+  user: User;
 }
 
 export function Dashboard({ user }: DashboardProps) {

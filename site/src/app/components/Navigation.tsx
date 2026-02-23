@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 
 interface NavigationProps {
   isLoggedIn: boolean;
-  currentUser?: { name: string; email: string };
+  currentUser?: { name: string; email: string; role?: string };
   onLoginClick: () => void;
   onSignUpClick: () => void;
   onLogout: () => void;
@@ -47,6 +47,11 @@ export function Navigation({
         const element = document.getElementById(scrollTo);
         element?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
+    } else if (view === 'home') {
+      // Scroll to top when navigating to home
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
     }
   };
 
@@ -56,7 +61,7 @@ export function Navigation({
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => handleNavClick('home')}
             className="text-[#CAD2C5] tracking-wider hover:text-[#84A98C] transition-colors text-lg"
             style={{ 
               fontFamily: "'Anton', sans-serif",
@@ -91,6 +96,15 @@ export function Navigation({
                 >
                   Dashboard
                 </Button>
+                {currentUser.role === 'admin' && (
+                  <Button
+                    onClick={() => onNavigate('admin')}
+                    variant="ghost"
+                    className="text-[#CAD2C5] hover:bg-[#354F52]"
+                  >
+                    Admin Panel
+                  </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger>
                     <Avatar className="h-9 w-9 cursor-pointer border-2 border-[#52796F] hover:border-[#84A98C] transition-colors">
