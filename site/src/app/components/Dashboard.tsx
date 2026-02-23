@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -13,9 +13,10 @@ import {
   Clock,
   Menu,
   X,
+  AlertCircle,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
-import type { User } from '../../lib/supabase';
+import { supabase, type User, type Invoice } from '../../lib/supabase';
 
 interface DashboardProps {
   user: User;
@@ -24,6 +25,8 @@ interface DashboardProps {
 export function Dashboard({ user }: DashboardProps) {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Home', icon: LayoutDashboard },
@@ -33,29 +36,68 @@ export function Dashboard({ user }: DashboardProps) {
     { id: 'support', label: 'Support', icon: HelpCircle },
   ];
 
-  const invoices = [
-    {
-      id: 'INV-001',
-      date: '2024-02-01',
-      description: 'Monthly Maintenance - February 2024',
-      amount: '$149.00',
-      status: 'Paid',
-    },
-    {
-      id: 'INV-002',
-      date: '2024-01-15',
-      description: 'Website Build - Initial',
-      amount: '$2,500.00',
-      status: 'Paid',
-    },
-    {
-      id: 'INV-003',
-      date: '2024-01-01',
-      description: 'Monthly Maintenance - January 2024',
-      amount: '$149.00',
-      status: 'Paid',
-    },
-  ];
+  useEffect(() => {
+    fetchInvoices();
+  }, [user.id]);
+
+  const fetchInvoices = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Could not fetch invoices. Database may not be set up yet:', error.message);
+        setInvoices([]);
+      } else {
+        setInvoices(data || []);
+      }
+    } catch (error) {
+      console.warn('Error loading invoices:', error);
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusMap = {
+      paid: { color: 'bg-green-100 text-green-700', icon: CheckCircle },
+      pending: { color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+      failed: { color: 'bg-red-100 text-red-700', icon: AlertCircle },
+    };
+    const config = statusMap[status as keyof typeof statusMap] || statusMap.pending;
+    const Icon = config.icon;
+    return (
+      <Badge className={config.color}>
+        <Icon size={12} className="mr-1" />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
+  const handleDownloadInvoice = async (stripeInvoiceId: string) => {
+    // Open Stripe invoice in new tab
+    window.open(`https://invoice.stripe.com/i/${stripeInvoiceId.split('_')[1]}`, '_blank');
+  };
 
   const renderContent = () => {
     switch (currentTab) {
@@ -84,16 +126,29 @@ export function Dashboard({ user }: DashboardProps) {
                     <div>
                       <p className="text-sm text-[#354F52] mb-1">Current Plan</p>
                       <h3 className="text-xl text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                        Maintenance Pro
+                        {user.subscription_status === 'active' ? 'Maintenance Pro' : 'No Active Plan'}
                       </h3>
                     </div>
-                    <Badge className="bg-green-500 text-white">
-                      <CheckCircle size={12} className="mr-1" />
-                      Active
-                    </Badge>
+                    {user.subscription_status === 'active' ? (
+                      <Badge className="bg-green-500 text-white">
+                        <CheckCircle size={12} className="mr-1" />
+                        Active
+                      </Badge>
+                    ) : user.subscription_status === 'past_due' ? (
+                      <Badge className="bg-yellow-500 text-white">
+                        <Clock size={12} className="mr-1" />
+                        Past Due
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-gray-400 text-white">
+                        Inactive
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-[#354F52] mb-4">
-                    Next billing: March 1, 2024
+                    {user.stripe_customer_id 
+                      ? 'Manage your subscription in Stripe Customer Portal' 
+                      : 'No subscription configured yet'}
                   </p>
                   <Button
                     onClick={() => setCurrentTab('subscription')}
@@ -116,36 +171,44 @@ export function Dashboard({ user }: DashboardProps) {
                   <h3 className="text-xl text-[#2F3E46] mb-4" style={{ fontWeight: 500 }}>
                     Recent Invoices
                   </h3>
-                  <div className="space-y-3">
-                    {invoices.slice(0, 3).map((invoice) => (
-                      <div
-                        key={invoice.id}
-                        className="flex items-center justify-between p-3 bg-white rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                            {invoice.description}
-                          </p>
-                          <p className="text-xs text-[#354F52]">{invoice.date}</p>
+                  {loading ? (
+                    <div className="text-center py-8 text-[#354F52]">Loading invoices...</div>
+                  ) : invoices.length === 0 ? (
+                    <div className="text-center py-8 text-[#354F52]">
+                      No invoices yet. Your admin will send you invoices here.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {invoices.slice(0, 3).map((invoice) => (
+                        <div
+                          key={invoice.id}
+                          className="flex items-center justify-between p-3 bg-white rounded-lg"
+                        >
+                          <div className="flex-1">
+                            <p className="text-sm text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                              {invoice.description}
+                            </p>
+                            <p className="text-xs text-[#354F52]">{formatDate(invoice.created_at)}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                              {formatCurrency(invoice.amount)}
+                            </p>
+                            {getStatusBadge(invoice.status)}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-[#52796F] hover:text-[#354F52]"
+                              onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
+                              disabled={invoice.status !== 'paid'}
+                            >
+                              <Download size={16} />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                            {invoice.amount}
-                          </p>
-                          <Badge className="bg-green-100 text-green-700">
-                            {invoice.status}
-                          </Badge>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-[#52796F] hover:text-[#354F52]"
-                          >
-                            <Download size={16} />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                   <Button
                     onClick={() => setCurrentTab('invoices')}
                     variant="ghost"
@@ -167,24 +230,34 @@ export function Dashboard({ user }: DashboardProps) {
                   <h3 className="text-xl text-[#2F3E46] mb-4" style={{ fontWeight: 500 }}>
                     Payment Method
                   </h3>
-                  <div className="flex items-center justify-between bg-white rounded-lg p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-8 bg-gradient-to-r from-[#52796F] to-[#354F52] rounded"></div>
-                      <div>
-                        <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                          •••• •••• •••• 4242
-                        </p>
-                        <p className="text-sm text-[#354F52]">Expires 12/2025</p>
+                  {user.stripe_customer_id ? (
+                    <div className="flex items-center justify-between bg-white rounded-lg p-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-8 bg-gradient-to-r from-[#52796F] to-[#354F52] rounded flex items-center justify-center">
+                          <Wallet size={16} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                            Payment methods available
+                          </p>
+                          <p className="text-sm text-[#354F52]">Managed through Stripe</p>
+                        </div>
                       </div>
+                      <Button
+                        onClick={() => setCurrentTab('payment')}
+                        variant="outline"
+                        className="border-[#52796F] text-[#52796F] hover:bg-[#52796F] hover:text-[#CAD2C5] rounded-full"
+                      >
+                        Manage
+                      </Button>
                     </div>
-                    <Button
-                      onClick={() => setCurrentTab('payment')}
-                      variant="outline"
-                      className="border-[#52796F] text-[#52796F] hover:bg-[#52796F] hover:text-[#CAD2C5] rounded-full"
-                    >
-                      Update
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="bg-white rounded-lg p-4 text-center">
+                      <p className="text-sm text-[#354F52]">
+                        No payment method configured yet
+                      </p>
+                    </div>
+                  )}
                 </Card>
               </motion.div>
             </div>
@@ -198,48 +271,54 @@ export function Dashboard({ user }: DashboardProps) {
               Invoices
             </h2>
             <Card className="bg-white border-none rounded-2xl overflow-hidden shadow-lg">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#CAD2C5]">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Invoice #</th>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Date</th>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Description</th>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Amount</th>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Status</th>
-                      <th className="px-6 py-4 text-left text-[#2F3E46]">Download</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((invoice) => (
-                      <tr key={invoice.id} className="border-b border-[#CAD2C5]">
-                        <td className="px-6 py-4 text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                          {invoice.id}
-                        </td>
-                        <td className="px-6 py-4 text-[#354F52]">{invoice.date}</td>
-                        <td className="px-6 py-4 text-[#354F52]">{invoice.description}</td>
-                        <td className="px-6 py-4 text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                          {invoice.amount}
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge className="bg-green-100 text-green-700">
-                            {invoice.status}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-[#52796F] hover:text-[#354F52]"
-                          >
-                            <Download size={16} />
-                          </Button>
-                        </td>
+              {loading ? (
+                <div className="text-center py-12 text-[#354F52]">Loading invoices...</div>
+              ) : invoices.length === 0 ? (
+                <div className="text-center py-12 text-[#354F52]">
+                  <FileText size={48} className="mx-auto mb-4 text-[#84A98C]" />
+                  <p className="text-lg mb-2">No invoices yet</p>
+                  <p className="text-sm">Your admin will send you invoices here.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-[#CAD2C5]">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Date</th>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Description</th>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Amount</th>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Status</th>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Download</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr key={invoice.id} className="border-b border-[#CAD2C5]">
+                          <td className="px-6 py-4 text-[#354F52]">{formatDate(invoice.created_at)}</td>
+                          <td className="px-6 py-4 text-[#354F52]">{invoice.description}</td>
+                          <td className="px-6 py-4 text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                            {formatCurrency(invoice.amount)}
+                          </td>
+                          <td className="px-6 py-4">
+                            {getStatusBadge(invoice.status)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-[#52796F] hover:text-[#354F52]"
+                              onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
+                              disabled={invoice.status !== 'paid'}
+                            >
+                              <Download size={16} />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           </div>
         );
@@ -251,43 +330,84 @@ export function Dashboard({ user }: DashboardProps) {
               Subscription Management
             </h2>
             <Card className="bg-[#CAD2C5] border-none rounded-2xl p-8 shadow-lg">
-              <div className="mb-6">
-                <h3 className="text-2xl text-[#2F3E46] mb-2" style={{ fontWeight: 500 }}>
-                  Maintenance Pro
-                </h3>
-                <p className="text-[#354F52] mb-4">$149/month</p>
-                <Badge className="bg-green-500 text-white">
-                  <CheckCircle size={12} className="mr-1" />
-                  Active
-                </Badge>
-              </div>
-
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg">
-                  <span className="text-[#354F52]">Next billing date</span>
-                  <span className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                    March 1, 2024
-                  </span>
+              {!user.stripe_customer_id ? (
+                <div className="text-center py-8">
+                  <CreditCard size={48} className="mx-auto mb-4 text-[#84A98C]" />
+                  <p className="text-lg text-[#2F3E46] mb-2">No subscription configured</p>
+                  <p className="text-sm text-[#354F52]">
+                    Your admin will set up a subscription for you if needed.
+                  </p>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg">
-                  <span className="text-[#354F52]">Billing cycle</span>
-                  <span className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                    Monthly
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="mb-6">
+                    <h3 className="text-2xl text-[#2F3E46] mb-2" style={{ fontWeight: 500 }}>
+                      {user.subscription_status === 'active' ? 'Maintenance Pro' : 'Subscription'}
+                    </h3>
+                    <p className="text-[#354F52] mb-4">$149/month</p>
+                    {user.subscription_status === 'active' ? (
+                      <Badge className="bg-green-500 text-white">
+                        <CheckCircle size={12} className="mr-1" />
+                        Active
+                      </Badge>
+                    ) : user.subscription_status === 'past_due' ? (
+                      <Badge className="bg-yellow-500 text-white">
+                        <Clock size={12} className="mr-1" />
+                        Past Due
+                      </Badge>
+                    ) : user.subscription_status === 'canceled' ? (
+                      <Badge className="bg-gray-500 text-white">
+                        Canceled
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-gray-400 text-white">
+                        Inactive
+                      </Badge>
+                    )}
+                  </div>
 
-              <div className="border-t border-[#84A98C] pt-6">
-                <Button
-                  variant="destructive"
-                  className="rounded-full"
-                >
-                  Cancel Subscription
-                </Button>
-                <p className="text-sm text-[#354F52] mt-2">
-                  Cancel anytime. No questions asked.
-                </p>
-              </div>
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg">
+                      <span className="text-[#354F52]">Subscription Status</span>
+                      <span className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                        {user.subscription_status ? user.subscription_status.charAt(0).toUpperCase() + user.subscription_status.slice(1).replace('_', ' ') : 'Inactive'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg">
+                      <span className="text-[#354F52]">Stripe Customer ID</span>
+                      <span className="text-[#2F3E46] text-sm font-mono">
+                        {user.stripe_customer_id}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-[#84A98C] pt-6">
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/create-portal-session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id }),
+                          });
+                          const data = await response.json();
+                          if (data.url) {
+                            window.location.href = data.url;
+                          }
+                        } catch (error) {
+                          console.error('Failed to open customer portal:', error);
+                        }
+                      }}
+                      className="bg-[#52796F] hover:bg-[#354F52] text-white rounded-full"
+                    >
+                      Manage Subscription in Stripe
+                    </Button>
+                    <p className="text-sm text-[#354F52] mt-2">
+                      Manage your subscription, payment methods, and billing information.
+                    </p>
+                  </div>
+                </>
+              )}
             </Card>
           </div>
         );
@@ -299,29 +419,44 @@ export function Dashboard({ user }: DashboardProps) {
               Payment Methods
             </h2>
             <Card className="bg-[#CAD2C5] border-none rounded-2xl p-8 shadow-lg">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-6 bg-white rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-10 bg-gradient-to-r from-[#52796F] to-[#354F52] rounded"></div>
-                    <div>
-                      <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
-                        •••• •••• •••• 4242
-                      </p>
-                      <p className="text-sm text-[#354F52]">Expires 12/2025</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="border-[#52796F] text-[#52796F] hover:bg-[#52796F] hover:text-[#CAD2C5] rounded-full"
-                  >
-                    Edit
-                  </Button>
+              {!user.stripe_customer_id ? (
+                <div className="text-center py-8">
+                  <Wallet size={48} className="mx-auto mb-4 text-[#84A98C]" />
+                  <p className="text-lg text-[#2F3E46] mb-2">No payment methods yet</p>
+                  <p className="text-sm text-[#354F52]">
+                    Your admin will set up billing for you if needed.
+                  </p>
                 </div>
-
-                <Button className="w-full bg-[#52796F] text-[#CAD2C5] hover:bg-[#354F52] rounded-full">
-                  Add Payment Method
-                </Button>
-              </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-[#354F52] mb-4">
+                    Your payment methods are managed securely through Stripe.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/create-portal-session', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ userId: user.id }),
+                        });
+                        const data = await response.json();
+                        if (data.url) {
+                          window.location.href = data.url;
+                        }
+                      } catch (error) {
+                        console.error('Failed to open customer portal:', error);
+                      }
+                    }}
+                    className="w-full bg-[#52796F] text-[#CAD2C5] hover:bg-[#354F52] rounded-full"
+                  >
+                    Manage Payment Methods in Stripe
+                  </Button>
+                  <p className="text-sm text-[#354F52] text-center">
+                    Add, edit, or remove payment methods securely.
+                  </p>
+                </div>
+              )}
             </Card>
           </div>
         );
