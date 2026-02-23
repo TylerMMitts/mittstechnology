@@ -17,13 +17,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState(false);
 
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        fetchUserProfile(session.user.id, session.user.email);
       } else {
         setLoading(false);
       }
@@ -33,9 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        setProfileError(false); // Reset error on new auth
+        fetchUserProfile(session.user.id, session.user.email);
       } else {
         setUser(null);
+        setProfileError(false);
         setLoading(false);
       }
     });
@@ -43,8 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string, email?: string) => {
     try {
+      setProfileError(false);
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -52,15 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        // If table doesn't exist or other DB error, just log it
-        // App will work without profile data
-        console.warn('Could not fetch user profile. Database may not be set up yet:', error.message);
+        // If we can't fetch the profile, log the error
+        console.error('Could not fetch user profile:', error.message);
+        
+        setProfileError(true);
         setLoading(false);
         return;
       }
       setUser(data);
+      setProfileError(false);
     } catch (error) {
-      console.warn('Error fetching user profile:', error);
+      console.error('Error fetching user profile:', error);
+      setProfileError(true);
     } finally {
       setLoading(false);
     }

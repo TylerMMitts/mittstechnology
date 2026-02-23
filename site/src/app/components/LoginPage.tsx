@@ -43,7 +43,6 @@ export function LoginPage({ mode, onSuccess, onSwitchMode }: LoginPageProps) {
         if (error) {
           toast.error(error.message || 'Invalid email or password');
         } else {
-          toast.success('Welcome back!');
           onSuccess();
         }
       }

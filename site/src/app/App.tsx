@@ -17,7 +17,7 @@ type View = 'home' | 'login' | 'signup' | 'dashboard' | 'admin';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('home');
-  const { user, loading, signOut } = useAuth();
+  const { user, supabaseUser, loading, signOut } = useAuth();
 
   // Redirect to dashboard if logged in and trying to access login/signup
   useEffect(() => {
@@ -29,7 +29,6 @@ export default function App() {
   const handleLogout = async () => {
     await signOut();
     setCurrentView('home');
-    toast.success('Logged out successfully');
   };
 
   const handleGetQuoteClick = () => {
@@ -71,16 +70,48 @@ export default function App() {
         );
 
       case 'dashboard':
+        // Require both authentication AND user profile to be loaded
         if (!user) {
-          setCurrentView('login');
-          return null;
+          if (!loading && supabaseUser) {
+            // Auth succeeded but profile fetch failed - stay on login silently
+            setCurrentView('login');
+            return null;
+          }
+          if (!loading && !supabaseUser) {
+            // No auth at all
+            setCurrentView('login');
+            return null;
+          }
+          // Still loading
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] flex items-center justify-center">
+              <div className="text-2xl text-[#2F3E46]">Loading your dashboard...</div>
+            </div>
+          );
         }
         return <Dashboard user={user} />;
 
       case 'admin':
-        if (!user || user.role !== 'admin') {
+        if (!user) {
+          if (!loading && supabaseUser) {
+            // Auth succeeded but profile fetch failed
+            setCurrentView('home');
+            return null;
+          }
+          if (!loading && !supabaseUser) {
+            // No auth
+            setCurrentView('home');
+            return null;
+          }
+          // Still loading
+          return (
+            <div className="min-h-screen bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] flex items-center justify-center">
+              <div className="text-2xl text-[#2F3E46]">Loading...</div>
+            </div>
+          );
+        }
+        if (user.role !== 'admin') {
           setCurrentView('home');
-          toast.error('Access denied. Admin only.');
           return null;
         }
         return <AdminPanel />;
