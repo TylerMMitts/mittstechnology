@@ -8,6 +8,9 @@
   "functions": {
     "api/**/*.ts": {
       "runtime": "@vercel/node@3"
+    },
+    "site/api/**/*.ts": {
+      "runtime": "@vercel/node@3"
     }
   }
 }
