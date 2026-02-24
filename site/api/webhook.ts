@@ -52,6 +52,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // Handle different event types
     switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await handlePaymentIntentSucceeded(paymentIntent);
+        break;
+
       case 'invoice.paid':
         const paidInvoice = event.data.object as Stripe.Invoice;
         await handleInvoicePaid(paidInvoice);
@@ -81,6 +86,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     console.error('Webhook handler error:', error);
     return res.status(500).json({ error: error.message });
+  }
+}
+
+async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  console.log('Payment intent succeeded:', paymentIntent.id);
+
+  // Get invoice ID from metadata
+  const invoiceId = paymentIntent.metadata.invoice_id;
+  
+  if (!invoiceId) {
+    console.log('No invoice_id in metadata, skipping');
+    return;
+  }
+
+  // Update invoice status in database
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+    })
+    .eq('id', invoiceId);
+
+  if (error) {
+    console.error('Error updating invoice:', error);
+    throw error;
   }
 }
 

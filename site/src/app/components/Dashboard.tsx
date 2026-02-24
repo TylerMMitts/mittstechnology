@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { supabase, type User, type Invoice } from '../../lib/supabase';
+import { EmbeddedPayment } from './EmbeddedPayment';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   user: User;
@@ -28,6 +30,7 @@ export function Dashboard({ user }: DashboardProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Home', icon: LayoutDashboard },
@@ -98,6 +101,20 @@ export function Dashboard({ user }: DashboardProps) {
   const handleDownloadInvoice = async (stripeInvoiceId: string) => {
     // Open Stripe invoice in new tab
     window.open(`https://invoice.stripe.com/i/${stripeInvoiceId.split('_')[1]}`, '_blank');
+  };
+
+  const handlePayInvoice = (invoice: Invoice) => {
+    setPaymentInvoice(invoice);
+  };
+
+  const handlePaymentSuccess = async () => {
+    toast.success('Payment successful!');
+    setPaymentInvoice(null);
+    await fetchInvoices(); // Refresh invoices
+  };
+
+  const handlePaymentCancel = () => {
+    setPaymentInvoice(null);
   };
 
   const renderContent = () => {
@@ -183,28 +200,38 @@ export function Dashboard({ user }: DashboardProps) {
                       {invoices.slice(0, 3).map((invoice) => (
                         <div
                           key={invoice.id}
-                          className="flex items-center justify-between p-3 bg-white rounded-lg"
+                          className="flex items-center justify-between p-3 bg-white rounded-lg gap-2"
                         >
-                          <div className="flex-1">
-                            <p className="text-sm text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[#2F3E46] truncate" style={{ fontWeight: 500 }}>
                               {invoice.description}
                             </p>
                             <p className="text-xs text-[#354F52]">{formatDate(invoice.created_at)}</p>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <p className="text-[#2F3E46]" style={{ fontWeight: 500 }}>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[#2F3E46] whitespace-nowrap" style={{ fontWeight: 500 }}>
                               {formatCurrency(invoice.amount)}
                             </p>
                             {getStatusBadge(invoice.status)}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-[#52796F] hover:text-[#354F52]"
-                              onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
-                              disabled={invoice.status !== 'paid'}
-                            >
-                              <Download size={16} />
-                            </Button>
+                            {invoice.status === 'pending' && (
+                              <Button
+                                size="sm"
+                                onClick={() => handlePayInvoice(invoice)}
+                                className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full px-3"
+                              >
+                                Pay
+                              </Button>
+                            )}
+                            {invoice.status === 'paid' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-[#52796F] hover:text-[#354F52]"
+                                onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
+                              >
+                                <Download size={16} />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -300,7 +327,7 @@ export function Dashboard({ user }: DashboardProps) {
                         <th className="px-6 py-4 text-left text-[#2F3E46]">Description</th>
                         <th className="px-6 py-4 text-left text-[#2F3E46]">Amount</th>
                         <th className="px-6 py-4 text-left text-[#2F3E46]">Status</th>
-                        <th className="px-6 py-4 text-left text-[#2F3E46]">Download</th>
+                        <th className="px-6 py-4 text-left text-[#2F3E46]">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -315,15 +342,27 @@ export function Dashboard({ user }: DashboardProps) {
                             {getStatusBadge(invoice.status)}
                           </td>
                           <td className="px-6 py-4">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-[#52796F] hover:text-[#354F52]"
-                              onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
-                              disabled={invoice.status !== 'paid'}
-                            >
-                              <Download size={16} />
-                            </Button>
+                            <div className="flex gap-2">
+                              {invoice.status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePayInvoice(invoice)}
+                                  className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full"
+                                >
+                                  Pay Now
+                                </Button>
+                              )}
+                              {invoice.status === 'paid' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-[#52796F] hover:text-[#354F52]"
+                                  onClick={() => handleDownloadInvoice(invoice.stripe_invoice_id)}
+                                >
+                                  <Download size={16} />
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -580,6 +619,21 @@ export function Dashboard({ user }: DashboardProps) {
           <main className="lg:col-span-3">{renderContent()}</main>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {paymentInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <EmbeddedPayment
+              invoiceId={paymentInvoice.id}
+              amount={paymentInvoice.amount}
+              description={paymentInvoice.description}
+              onSuccess={handlePaymentSuccess}
+              onCancel={handlePaymentCancel}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

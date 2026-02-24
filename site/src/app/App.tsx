@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Navigation } from './components/Navigation';
 import { HeroSection } from './components/HeroSection';
 import { TrustBar } from './components/TrustBar';
@@ -13,33 +14,35 @@ import { AdminPanel } from './components/AdminPanel';
 import { Toaster, toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 
-type View = 'home' | 'login' | 'signup' | 'dashboard' | 'admin';
-
-export default function App() {
-  const [currentView, setCurrentView] = useState<View>('home');
-  const { user, supabaseUser, loading, signOut } = useAuth();
-
-  // Redirect to dashboard if logged in and trying to access login/signup
-  useEffect(() => {
-    if (user && (currentView === 'login' || currentView === 'signup')) {
-      setCurrentView('dashboard');
-    }
-  }, [user, currentView]);
-
-  const handleLogout = async () => {
-    await signOut();
-    setCurrentView('home');
-  };
-
+function HomePage() {
+  const { user } = useAuth();
+  
   const handleGetQuoteClick = () => {
     if (user) {
-      setCurrentView('dashboard');
+      window.location.href = '/dashboard';
     } else {
       const element = document.getElementById('contact');
       element?.scrollIntoView({ behavior: 'smooth' });
       toast.info('Contact us below to get your free quote!');
     }
   };
+
+  return (
+    <>
+      <HeroSection onGetQuoteClick={handleGetQuoteClick} />
+      <TrustBar />
+      <ServicesSection />
+      <PortfolioSection />
+      <HowItWorksSection />
+      <PricingSection onGetQuoteClick={handleGetQuoteClick} />
+      <Footer />
+    </>
+  );
+}
+
+function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -49,107 +52,107 @@ export default function App() {
     );
   }
 
-  const renderView = () => {
-    switch (currentView) {
-      case 'login':
-        return (
-          <LoginPage
-            mode="login"
-            onSuccess={() => setCurrentView('dashboard')}
-            onSwitchMode={() => setCurrentView('signup')}
-          />
-        );
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-      case 'signup':
-        return (
-          <LoginPage
-            mode="signup"
-            onSuccess={() => setCurrentView('dashboard')}
-            onSwitchMode={() => setCurrentView('login')}
-          />
-        );
+  if (adminOnly && user.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
-      case 'dashboard':
-        // Require both authentication AND user profile to be loaded
-        if (!user) {
-          if (!loading && supabaseUser) {
-            // Auth succeeded but profile fetch failed - stay on login silently
-            setCurrentView('login');
-            return null;
-          }
-          if (!loading && !supabaseUser) {
-            // No auth at all
-            setCurrentView('login');
-            return null;
-          }
-          // Still loading
-          return (
-            <div className="min-h-screen bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] flex items-center justify-center">
-              <div className="text-2xl text-[#2F3E46]">Loading your dashboard...</div>
-            </div>
-          );
-        }
-        return <Dashboard user={user} />;
+  return <>{children}</>;
+}
 
-      case 'admin':
-        if (!user) {
-          if (!loading && supabaseUser) {
-            // Auth succeeded but profile fetch failed
-            setCurrentView('home');
-            return null;
-          }
-          if (!loading && !supabaseUser) {
-            // No auth
-            setCurrentView('home');
-            return null;
-          }
-          // Still loading
-          return (
-            <div className="min-h-screen bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] flex items-center justify-center">
-              <div className="text-2xl text-[#2F3E46]">Loading...</div>
-            </div>
-          );
-        }
-        if (user.role !== 'admin') {
-          setCurrentView('home');
-          return null;
-        }
-        return <AdminPanel />;
+export default function App() {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-      case 'home':
-      default:
-        return (
-          <>
-            <HeroSection onGetQuoteClick={handleGetQuoteClick} />
-            <TrustBar />
-            <ServicesSection />
-            <PortfolioSection />
-            <HowItWorksSection />
-            <PricingSection onGetQuoteClick={handleGetQuoteClick} />
-            <Footer />
-          </>
-        );
-    }
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
   };
+
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#CAD2C5] to-[#84A98C] flex items-center justify-center">
+        <div className="text-2xl text-[#2F3E46]">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       <Toaster position="top-right" richColors />
       
-      {currentView !== 'login' && currentView !== 'signup' && (
+      {!isAuthPage && (
         <Navigation
           isLoggedIn={!!user}
           currentUser={user ? { name: user.name, email: user.email, role: user.role } : undefined}
-          onLoginClick={() => setCurrentView('login')}
-          onSignUpClick={() => setCurrentView('signup')}
+          onLoginClick={() => navigate('/login')}
+          onSignUpClick={() => navigate('/signup')}
           onLogout={handleLogout}
-          onDashboardClick={() => setCurrentView('dashboard')}
-          currentView={currentView}
-          onNavigate={(view) => setCurrentView(view as View)}
+          onDashboardClick={() => navigate('/dashboard')}
+          currentView={location.pathname.substring(1) as any}
+          onNavigate={(view) => navigate(`/${view}`)}
         />
       )}
 
-      {renderView()}
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        
+        <Route
+          path="/login"
+          element={
+            user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <LoginPage
+                mode="login"
+                onSuccess={() => navigate('/dashboard')}
+                onSwitchMode={() => navigate('/signup')}
+              />
+            )
+          }
+        />
+        
+        <Route
+          path="/signup"
+          element={
+            user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <LoginPage
+                mode="signup"
+                onSuccess={() => navigate('/dashboard')}
+                onSwitchMode={() => navigate('/login')}
+              />
+            )
+          }
+        />
+        
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard user={user!} />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/admin-panel"
+          element={
+            <ProtectedRoute adminOnly>
+              <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 }

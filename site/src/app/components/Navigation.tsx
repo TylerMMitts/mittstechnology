@@ -98,7 +98,7 @@ export function Navigation({
                 </Button>
                 {currentUser.role === 'admin' && (
                   <Button
-                    onClick={() => onNavigate('admin')}
+                    onClick={() => onNavigate('admin-panel')}
                     variant="ghost"
                     className="text-[#CAD2C5] hover:bg-[#354F52]"
                   >
