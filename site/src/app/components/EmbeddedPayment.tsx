@@ -25,31 +25,52 @@ function PaymentForm({ clientSecret, amount, description, onSuccess, onCancel }:
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!stripe || !elements) {
+      toast.error('Payment system is still loading. Please wait a moment.');
+      return;
+    }
+
+    if (!isReady) {
+      toast.error('Payment form is still loading. Please wait a moment.');
       return;
     }
 
     setLoading(true);
 
     try {
+      // Submit the payment element to ensure all fields are filled
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        toast.error(submitError.message || 'Please fill in all payment details');
+        setLoading(false);
+        return;
+      }
+
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         redirect: 'if_required',
+        confirmParams: {
+          return_url: window.location.href,
+        },
       });
 
       if (error) {
         toast.error(error.message || 'Payment failed');
+        setLoading(false);
       } else if (paymentIntent && paymentIntent.status === 'succeeded') {
         toast.success('Payment successful!');
         onSuccess();
+      } else {
+        setLoading(false);
       }
     } catch (err: any) {
+      console.error('Payment error:', err);
       toast.error(err.message || 'Payment failed');
-    } finally {
       setLoading(false);
     }
   };
@@ -99,6 +120,7 @@ function PaymentForm({ clientSecret, amount, description, onSuccess, onCancel }:
       {/* Payment Element */}
       <Card className="bg-white border-[#CAD2C5] border-2 rounded-2xl p-6">
         <PaymentElement
+          onReady={() => setIsReady(true)}
           options={{
             layout: 'tabs',
             defaultValues: {
@@ -108,6 +130,11 @@ function PaymentForm({ clientSecret, amount, description, onSuccess, onCancel }:
             },
           }}
         />
+        {!isReady && (
+          <div className="text-center text-sm text-[#354F52] mt-2">
+            Loading payment form...
+          </div>
+        )}
       </Card>
 
       {/* Action Buttons */}
@@ -123,10 +150,10 @@ function PaymentForm({ clientSecret, amount, description, onSuccess, onCancel }:
         </Button>
         <Button
           type="submit"
-          disabled={!stripe || loading}
-          className="flex-1 bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full py-6 text-lg shadow-lg"
+          disabled={!stripe || !isReady || loading}
+          className="flex-1 bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full py-6 text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Processing...' : `Pay ${formatCurrency(amount)}`}
+          {loading ? 'Processing...' : !isReady ? 'Loading...' : `Pay ${formatCurrency(amount)}`}
         </Button>
       </div>
     </form>
