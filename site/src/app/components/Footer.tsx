@@ -4,7 +4,7 @@ export function Footer() {
   return (
     <footer id="contact" className="bg-[#2F3E46] text-[#CAD2C5] py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
           {/* Company Info */}
           <div>
             <h3 className="text-2xl mb-4 tracking-wider" style={{ fontFamily: "'Anton', sans-serif", fontWeight: 400, letterSpacing: '0.1em' }}>
@@ -19,29 +19,8 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-2 text-[#84A98C]">
               <Mail size={16} />
-              <a href="mailto:hello@mittstech.com" className="hover:text-[#CAD2C5] transition-colors">
-                hello@mittstech.com
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Links */}
-          <div>
-            <h4 className="text-lg mb-4" style={{ fontWeight: 500 }}>
-              Quick Links
-            </h4>
-            <div className="space-y-2">
-              <a href="#services" className="block text-[#84A98C] hover:text-[#CAD2C5] transition-colors">
-                Services
-              </a>
-              <a href="#portfolio" className="block text-[#84A98C] hover:text-[#CAD2C5] transition-colors">
-                Portfolio
-              </a>
-              <a href="#pricing" className="block text-[#84A98C] hover:text-[#CAD2C5] transition-colors">
-                Pricing
-              </a>
-              <a href="#contact" className="block text-[#84A98C] hover:text-[#CAD2C5] transition-colors">
-                Contact
+              <a href="mailto:mittstechnologyllc@gmail.com" className="hover:text-[#CAD2C5] transition-colors">
+                mittstechnologyllc@gmail.com
               </a>
             </div>
           </div>

@@ -589,11 +589,11 @@ export function Dashboard({ user }: DashboardProps) {
                 <div className="p-4 bg-white rounded-lg">
                   <p className="text-sm text-[#354F52] mb-1">Email</p>
                   <a
-                    href="mailto:support@mittstech.com"
+                    href="mailto:mittstechnologyllc@gmail.com"
                     className="text-[#52796F] hover:text-[#354F52]"
                     style={{ fontWeight: 500 }}
                   >
-                    support@mittstech.com
+                    mittstechnologyllc@gmail.com
                   </a>
                 </div>
                 <div className="p-4 bg-white rounded-lg">
