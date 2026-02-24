@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { supabase, type User, type Invoice } from '../../lib/supabase';
@@ -267,9 +268,20 @@ export function Dashboard({ user }: DashboardProps) {
       case 'invoices':
         return (
           <div className="space-y-6">
-            <h2 className="text-3xl text-[#2F3E46] mb-6" style={{ fontWeight: 300 }}>
-              Invoices
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl text-[#2F3E46]" style={{ fontWeight: 300 }}>
+                Invoices
+              </h2>
+              <Button
+                onClick={fetchInvoices}
+                variant="outline"
+                disabled={loading}
+                className="border-[#52796F] text-[#52796F] hover:bg-[#52796F] hover:text-white rounded-full"
+              >
+                <RefreshCw size={16} className={loading ? 'animate-spin mr-2' : 'mr-2'} />
+                Refresh
+              </Button>
+            </div>
             <Card className="bg-white border-none rounded-2xl overflow-hidden shadow-lg">
               {loading ? (
                 <div className="text-center py-12 text-[#354F52]">Loading invoices...</div>
