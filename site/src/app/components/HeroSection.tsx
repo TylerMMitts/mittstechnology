@@ -94,38 +94,31 @@ export function HeroSection({ onGetQuoteClick }: HeroSectionProps) {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="order-1 lg:order-2 lg:-mt-16"
-            style={{
-              perspective: '2000px',
-            }}
+            className="order-1 lg:order-2"
           >
-            <motion.div
-              animate={{
-                rotateY: [0, 2, 0, -2, 0],
-                rotateX: [0, 1, 0, -1, 0],
-              }}
-              transition={{
-                duration: 10,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              style={{
-                transformStyle: 'preserve-3d',
-              }}
-              className="relative"
-            >
-              {/* Monitor frame */}
-              <div
-                className="relative bg-[#2F3E46] rounded-2xl shadow-2xl"
-                style={{
-                  transform: 'rotateX(5deg) rotateY(-5deg)',
-                  transformStyle: 'preserve-3d',
+            <div className="relative" style={{ perspective: '1500px' }}>
+              <motion.div
+                animate={{
+                  rotateY: [0, 2, 0, -2, 0],
+                  rotateX: [0, 1, 0, -1, 0],
                 }}
+                transition={{
+                  duration: 10,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transform: 'rotateX(5deg) rotateY(-3deg)',
+                }}
+                className="relative pb-12"
               >
-                {/* Screen bezel */}
-                <div className="p-4">
-                  {/* Screen content */}
-                  <div className="relative bg-white rounded-lg overflow-hidden shadow-inner aspect-video">
+                {/* Monitor frame */}
+                <div className="relative bg-[#2F3E46] rounded-2xl shadow-2xl">
+                  {/* Screen bezel */}
+                  <div className="p-4">
+                    {/* Screen content */}
+                    <div className="relative bg-white rounded-lg overflow-hidden shadow-inner aspect-video">
                     {/* Clean website mockup */}
                     <div className="w-full h-full bg-gradient-to-br from-white to-[#f5f5f5] p-6">
                       {/* Header bar */}
@@ -179,36 +172,32 @@ export function HeroSection({ onGetQuoteClick }: HeroSectionProps) {
 
                 {/* Monitor chin */}
                 <div className="h-8 bg-[#2F3E46] rounded-b-2xl" />
-
-                {/* Monitor stand */}
-                <div
-                  className="absolute left-1/2 -translate-x-1/2 w-24 h-6 bg-[#354F52] rounded-t-lg"
-                  style={{
-                    bottom: '-24px',
-                    transform: 'translateX(-50%) rotateX(-90deg)',
-                    transformOrigin: 'top center',
-                  }}
-                />
-
-                {/* Monitor base */}
-                <div
-                  className="absolute left-1/2 -translate-x-1/2 w-40 h-3 bg-[#2F3E46] rounded-full"
-                  style={{
-                    bottom: '-30px',
-                    boxShadow: '0 4px 20px rgba(47, 62, 70, 0.3)',
-                  }}
-                />
               </div>
+
+              {/* Monitor stand */}
+              <div className="absolute left-1/2 -translate-x-1/2 w-20 h-16 bg-[#354F52] rounded-t-lg bottom-0" 
+                style={{
+                  clipPath: 'polygon(30% 0%, 70% 0%, 100% 100%, 0% 100%)',
+                }}
+              />
+
+              {/* Monitor base */}
+              <div className="absolute left-1/2 -translate-x-1/2 w-48 h-4 bg-[#2F3E46] rounded-full -bottom-2"
+                style={{
+                  boxShadow: '0 8px 30px rgba(47, 62, 70, 0.4)',
+                }}
+              />
 
               {/* Floating shadow */}
               <div
-                className="absolute inset-0 blur-3xl opacity-20 -z-10"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full blur-3xl opacity-10 -z-10"
                 style={{
                   background: 'radial-gradient(ellipse at center, #2F3E46 0%, transparent 70%)',
-                  transform: 'translateY(60%) scale(0.8)',
+                  transform: 'translate(-50%, 30%) scale(0.9)',
                 }}
               />
-            </motion.div>
+              </motion.div>
+            </div>
           </motion.div>
         </div>
       </div>
