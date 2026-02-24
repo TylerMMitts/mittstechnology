@@ -31,6 +31,7 @@ export function Dashboard({ user }: DashboardProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [syncingInvoices, setSyncingInvoices] = useState<Set<string>>(new Set());
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Home', icon: LayoutDashboard },
@@ -108,13 +109,51 @@ export function Dashboard({ user }: DashboardProps) {
   };
 
   const handlePaymentSuccess = async () => {
-    toast.success('Payment successful!');
+    toast.success('Payment successful! Updating invoice status...');
     setPaymentInvoice(null);
-    await fetchInvoices(); // Refresh invoices
+    
+    // Wait 2 seconds for webhook to process, then refresh
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await fetchInvoices();
+    
+    // If still pending after 2 seconds, try again
+    setTimeout(async () => {
+      await fetchInvoices();
+    }, 3000);
   };
 
   const handlePaymentCancel = () => {
     setPaymentInvoice(null);
+  };
+
+  const handleSyncInvoiceStatus = async (invoice: Invoice) => {
+    setSyncingInvoices(prev => new Set(prev).add(invoice.id));
+    
+    try {
+      const response = await fetch('/api/sync-invoice-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+
+      const data = await response.json();
+      
+      if (data.wasUpdated) {
+        toast.success(`Invoice status updated to: ${data.status}`);
+        await fetchInvoices();
+      } else {
+        toast.info(data.message || 'Invoice status is already up to date');
+      }
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast.error('Failed to sync invoice status');
+    } finally {
+      setSyncingInvoices(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(invoice.id);
+        return newSet;
+      });
+    }
   };
 
   const renderContent = () => {
@@ -214,13 +253,25 @@ export function Dashboard({ user }: DashboardProps) {
                             </p>
                             {getStatusBadge(invoice.status)}
                             {invoice.status === 'pending' && (
-                              <Button
-                                size="sm"
-                                onClick={() => handlePayInvoice(invoice)}
-                                className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full px-3"
-                              >
-                                Pay
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handlePayInvoice(invoice)}
+                                  className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full px-3"
+                                >
+                                  Pay
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleSyncInvoiceStatus(invoice)}
+                                  disabled={syncingInvoices.has(invoice.id)}
+                                  className="text-[#52796F] hover:text-[#354F52] px-2"
+                                  title="Check payment status in Stripe"
+                                >
+                                  <RefreshCw size={14} className={syncingInvoices.has(invoice.id) ? 'animate-spin' : ''} />
+                                </Button>
+                              </>
                             )}
                             {invoice.status === 'paid' && (
                               <Button
@@ -344,13 +395,25 @@ export function Dashboard({ user }: DashboardProps) {
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
                               {invoice.status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handlePayInvoice(invoice)}
-                                  className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full"
-                                >
-                                  Pay Now
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handlePayInvoice(invoice)}
+                                    className="bg-gradient-to-r from-[#52796F] to-[#354F52] hover:from-[#354F52] hover:to-[#2F3E46] text-white rounded-full"
+                                  >
+                                    Pay Now
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSyncInvoiceStatus(invoice)}
+                                    disabled={syncingInvoices.has(invoice.id)}
+                                    className="border-[#52796F] text-[#52796F] hover:bg-[#CAD2C5] rounded-full"
+                                  >
+                                    <RefreshCw size={14} className={syncingInvoices.has(invoice.id) ? 'animate-spin mr-1' : 'mr-1'} />
+                                    {syncingInvoices.has(invoice.id) ? 'Checking...' : 'Check Status'}
+                                  </Button>
+                                </>
                               )}
                               {invoice.status === 'paid' && (
                                 <Button

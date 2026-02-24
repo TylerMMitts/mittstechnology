@@ -40,14 +40,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Verify webhook signature
     if (webhookSecret) {
       event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
+      console.log(`✅ Webhook signature verified for event: ${event.type}`);
     } else {
       // For development/testing without webhook secret
+      console.warn('⚠️ WARNING: No webhook secret configured - skipping signature verification');
       event = JSON.parse(buf.toString());
     }
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message);
+    console.error('❌ Webhook signature verification failed:', err.message);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
+
+  console.log(`📥 Received webhook event: ${event.type} (ID: ${event.id})`);
 
   try {
     // Handle different event types
@@ -79,57 +83,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log(`ℹ️ Unhandled event type: ${event.type}`);
     }
 
+    console.log(`✅ Webhook processed successfully: ${event.type}`);
     return res.status(200).json({ received: true });
   } catch (error: any) {
-    console.error('Webhook handler error:', error);
+    console.error('❌ Webhook handler error:', error);
+    console.error('Error stack:', error.stack);
     return res.status(500).json({ error: error.message });
   }
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   console.log('Payment intent succeeded:', paymentIntent.id);
+  console.log('Payment intent metadata:', JSON.stringify(paymentIntent.metadata));
 
   // Get invoice ID from metadata
   const invoiceId = paymentIntent.metadata.invoice_id;
   
   if (!invoiceId) {
-    console.log('No invoice_id in metadata, skipping');
+    console.log('No invoice_id in metadata, skipping database update');
+    console.log('Available metadata keys:', Object.keys(paymentIntent.metadata));
     return;
   }
 
+  console.log(`Updating invoice ${invoiceId} to paid status...`);
+
   // Update invoice status in database
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('invoices')
     .update({
       status: 'paid',
       paid_at: new Date().toISOString(),
     })
-    .eq('id', invoiceId);
+    .eq('id', invoiceId)
+    .select();
 
   if (error) {
     console.error('Error updating invoice:', error);
     throw error;
+  }
+
+  if (data && data.length > 0) {
+    console.log(`✅ Successfully updated invoice ${invoiceId} to paid`);
+  } else {
+    console.warn(`⚠️ No invoice found with id: ${invoiceId}`);
   }
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
   console.log('Invoice paid:', invoice.id);
+  console.log('Invoice status in Stripe:', invoice.status);
 
   // Update invoice status in database
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('invoices')
     .update({
       status: 'paid',
       paid_at: new Date().toISOString(),
     })
-    .eq('stripe_invoice_id', invoice.id);
+    .eq('stripe_invoice_id', invoice.id)
+    .select();
 
   if (error) {
     console.error('Error updating invoice:', error);
     throw error;
+  }
+
+  if (data && data.length > 0) {
+    console.log(`✅ Successfully updated invoice with stripe_invoice_id ${invoice.id} to paid`);
+  } else {
+    console.warn(`⚠️ No invoice found with stripe_invoice_id: ${invoice.id}`);
   }
 }
 
